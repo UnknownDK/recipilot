@@ -1,0 +1,89 @@
+version: "3.9"
+services:
+  food-gen: # DE klubbens django app, bygges fra "DE-Klubben", skal bruge forbindelse til mysql, er reverse proxied af nginx
+    build: "./foodgen/"
+    container_name: foodgen
+    image: foodgen:1.0
+    ports:
+      - "8000:8000"
+#    networks:
+#      - backend
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    #env_file: "./env/DE.env"
+#    expose:
+#      - 8000
+    volumes:   
+      - var-www:/var/www/
+      - media:/app/media/
+
+
+  nginx:
+    image: nginx:1.15-alpine
+ #   networks:
+ #     - backend
+ #     - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - var-www:/var/www/
+      
+  certbothetzner:
+    build: "../certbot-dns-hetzner/"
+    image: certbot-dns-hetzner:1.0
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ../secrets:/secrets/letsencrypt
+    command: certbot certonly
+      --authenticator dns-hetzner
+      --agree-tos
+      --email bhgreven@pm.me
+      --no-eff-email
+      --dns-hetzner-credentials /secrets/letsencrypt/hetzner_credentials.ini
+      --dns-hetzner-propagation-seconds 240
+      --keep-until-expiring
+      --non-interactive
+      --expand
+      --server https://acme-v02.api.letsencrypt.org/directory
+      -d "recipilot.dk"
+      -d "www.recipilot.dk"
+      -d "pgadmin.recipilot.dk"
+
+  db:
+    image: postgres
+    container_name: local_pgdb
+    restart: always
+    ports:
+      - "54320:5432"
+    env_file:
+      - ../secrets/postgresql.env
+    volumes:
+      - local_pgdata:/var/lib/postgresql/data
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin4_container
+    restart: always
+    ports:
+      - "5050:80"
+    env_file:
+      - ../secrets/postgresql.env
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+#networks:
+#  frontend:
+#    driver: bridge
+#  backend:
+
+volumes:
+  var-www:
+  var-www-media:
+  media:
+  local_pgdata:
+  pgadmin-data:
